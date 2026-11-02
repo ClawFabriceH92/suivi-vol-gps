@@ -4,4 +4,8 @@ local.properties
 *.iml
 .idea/
 *.apk
+*.aab
 *.keystore
+*.jks
+.kotlin/
+captures/

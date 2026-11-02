@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Suivi de vol GPS</string>
+    <string name="canal_notification">Suivi du vol en cours</string>
+    <string name="notification_titre">Vol %1$s en cours</string>
+    <string name="notification_attente">En attente de position GPS…</string>
+</resources>

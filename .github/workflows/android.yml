@@ -1,0 +1,114 @@
+name: Android
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publier:
+        description: "Publier une release GitHub avec l'APK"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Tests et APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dépôt
+        uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Tests unitaires du module core
+        run: ./gradlew :core:test --no-daemon --stacktrace
+
+      - name: Clé de signature (si les secrets existent)
+        id: cle
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SUIVIVOL_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/suivivol.keystore"
+            echo "SUIVIVOL_KEYSTORE=$RUNNER_TEMP/suivivol.keystore" >> "$GITHUB_ENV"
+            echo "signature=release" >> "$GITHUB_OUTPUT"
+          else
+            echo "Aucun secret SUIVIVOL_KEYSTORE_BASE64 : l'APK sera signé avec la clé de debug de ce build."
+            echo "signature=debug" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: APK release
+        env:
+          SUIVIVOL_KEYSTORE_PASSWORD: ${{ secrets.SUIVIVOL_KEYSTORE_PASSWORD }}
+          SUIVIVOL_KEY_ALIAS: ${{ secrets.SUIVIVOL_KEY_ALIAS }}
+          SUIVIVOL_KEY_PASSWORD: ${{ secrets.SUIVIVOL_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Nommage de l'APK et version.json
+        id: apk
+        run: |
+          set -euo pipefail
+          VERSION_NAME=$(grep -oP 'val versionNameApp = "\K[^"]+' app/build.gradle.kts)
+          VERSION_CODE=$(grep -oP 'val versionCodeApp = \K[0-9]+' app/build.gradle.kts)
+          DATE=$(date -u +%Y%m%d)
+          NOM="SuiviVol_${DATE}_v${VERSION_NAME}.apk"
+          mkdir -p sortie
+          cp app/build/outputs/apk/release/app-release.apk "sortie/$NOM"
+          cat > sortie/version.json <<JSON
+          {
+            "versionCode": ${VERSION_CODE},
+            "versionName": "${VERSION_NAME}",
+            "date": "${DATE}",
+            "apk": "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION_NAME}/${NOM}",
+            "signature": "${{ steps.cle.outputs.signature }}",
+            "notes": "Version ${VERSION_NAME} du ${DATE}."
+          }
+          JSON
+          sha256sum "sortie/$NOM" > "sortie/$NOM.sha256"
+          echo "nom=$NOM" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          cat sortie/version.json
+
+      - name: Artefact de build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.nom }}
+          path: sortie/
+          retention-days: 30
+
+      - name: Release GitHub (roulante par version)
+        if: github.event_name == 'workflow_dispatch' && inputs.publier
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.apk.outputs.version }}
+          name: Suivi de vol GPS ${{ steps.apk.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          body: |
+            APK Android (API 26+) : `${{ steps.apk.outputs.nom }}`.
+
+            Signature : ${{ steps.cle.outputs.signature }}${{ steps.cle.outputs.signature == 'debug' && ' (clé de debug générée par ce build : pour installer une version suivante, désinstaller d''abord celle-ci, ou configurer les secrets de signature décrits dans le README)' || '' }}.
+
+            Le fichier `version.json` sert à la vérification de mise à jour depuis l'application.
+          files: |
+            sortie/*.apk
+            sortie/*.sha256
+            sortie/version.json
+          fail_on_unmatched_files: true
