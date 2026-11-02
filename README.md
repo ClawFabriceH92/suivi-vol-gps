@@ -129,6 +129,10 @@ Les fichiers `*.keystore` sont ignorés par git : ne jamais les committer.
   l'utilisateur ; la politique de la fondation OSM déconseille le préchargement, il reste modeste
   (quelques centaines de tuiles par trajet).
 - **Minification** désactivée en v1 (APK plus gros, mais pas de risque R8 sur osmdroid).
+- **Altitude barométrique en cabine pressurisée** (§4.2) : le baromètre du téléphone mesure la
+  pression de la cabine, soit environ 1 500 à 2 500 m d'altitude équivalente quel que soit le niveau
+  de vol. Quand l'écart avec le GPS dépasse 300 m, l'application affiche l'altitude GPS en gros et
+  l'altitude cabine en petit ; le recalage baro ne sert donc que dans un avion non pressurisé.
 
 ## Licence
 

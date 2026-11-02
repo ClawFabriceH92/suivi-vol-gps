@@ -12,8 +12,8 @@ plugins {
 }
 
 // Version de l'application : à incrémenter à chaque release (versionCode strictement croissant).
-val versionCodeApp = 1
-val versionNameApp = "1.0.0"
+val versionCodeApp = 2
+val versionNameApp = "1.0.1"
 val dateBuild: String = SimpleDateFormat("yyyyMMdd", Locale.ROOT)
     .apply { timeZone = TimeZone.getTimeZone("UTC") }
     .format(Date())

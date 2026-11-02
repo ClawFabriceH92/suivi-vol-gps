@@ -128,6 +128,7 @@ fun EcranVol(
                         valeur = Unites.formatAltitude(etat.altitudeAfficheeM, reglages.uniteAltitude),
                         secondaire = when {
                             etat.altitudeBaroM != null && altitudeGps != null -> "GPS ${Unites.formatAltitude(altitudeGps, reglages.uniteAltitude)}"
+                            etat.altitudeCabineM != null -> "cabine ${Unites.formatAltitude(etat.altitudeCabineM, reglages.uniteAltitude)} (pressurisée)"
                             !etat.barometreDisponible -> "pas de baromètre"
                             else -> null
                         },
@@ -170,7 +171,7 @@ fun EcranVol(
                         progress = { etat.progression.toFloat() },
                         modifier = Modifier.fillMaxWidth().height(10.dp),
                     )
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(plan?.depart?.code ?: "", style = MaterialTheme.typography.labelMedium)
                         Text("${(etat.progression * 100).toInt()} %", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         Text(plan?.arrivee?.code ?: "", style = MaterialTheme.typography.labelMedium)

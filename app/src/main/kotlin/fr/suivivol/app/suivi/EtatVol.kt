@@ -17,6 +17,8 @@ data class EtatVol(
     val altitudeGpsM: Double? = null,
     /** Altitude barométrique recalée sur le GPS (null si pas de baromètre). */
     val altitudeBaroM: Double? = null,
+    /** Altitude équivalente de la pression cabine quand la cabine est pressurisée (baro inutilisable). */
+    val altitudeCabineM: Double? = null,
     val barometreDisponible: Boolean = false,
     val vitesseLisseeKmh: Double? = null,
     val vitesseInstantaneeKmh: Double? = null,

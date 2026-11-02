@@ -63,6 +63,14 @@ class ServiceSuiviVol : Service(), LocationListener, SensorEventListener {
         private const val TAG = "ServiceSuiviVol"
         private const val INTERVALLE_NOTIFICATION_MS = 5_000L
         private const val ESPACEMENT_TRACE_M = 500.0
+
+        /**
+         * Cabine pressurisée : le baromètre du téléphone mesure la pression de la cabine (≈ 1 500 à
+         * 2 500 m d'altitude équivalente), pas celle de l'extérieur. Au-delà de cet écart avec le GPS,
+         * l'altitude barométrique n'est plus l'altitude de l'avion et le GPS fait foi.
+         */
+        private const val ECART_CABINE_ON_M = 300.0
+        private const val ECART_CABINE_OFF_M = 150.0
         private const val TRACE_MAX_POINTS = 20_000
 
         fun demarrer(context: Context, volId: Long) {
@@ -98,6 +106,7 @@ class ServiceSuiviVol : Service(), LocationListener, SensorEventListener {
     private var frequenceMsActive = 1_000L
 
     private var altitudeBaroBruteM: Double? = null
+    private var cabinePressurisee = false
     private var derniereMajBaroMs = 0L
     private var derniereNotificationMs = 0L
     private var dernierPointTrace: Coordonnee? = null
@@ -254,10 +263,19 @@ class ServiceSuiviVol : Service(), LocationListener, SensorEventListener {
         immobilite.signaler(maintenant, vitesseKmh)
 
         val baroBrute = altitudeBaroBruteM
-        if (altitudeGps != null && baroBrute != null && gpsFiable(location)) {
+        if (altitudeGps != null && baroBrute != null && location.hasAccuracy() && location.accuracy <= 100f) {
+            val ecart = kotlin.math.abs(altitudeGps - baroBrute - recalage.decalageM)
+            cabinePressurisee = when {
+                ecart > ECART_CABINE_ON_M -> true
+                ecart < ECART_CABINE_OFF_M -> false
+                else -> cabinePressurisee
+            }
+        }
+        if (altitudeGps != null && baroBrute != null && !cabinePressurisee && gpsFiable(location)) {
             recalage.ajouterMesure(altitudeGps, baroBrute)
         }
-        val altitudeBaro = baroBrute?.let { recalage.altitudeAffichee(it) }
+        val altitudeBaro = if (cabinePressurisee) null else baroBrute?.let { recalage.altitudeAffichee(it) }
+        val altitudeCabine = if (cabinePressurisee) baroBrute else null
         val vitesseLissee = lisseur.vitesseLissee
         val position = Coordonnee(location.latitude, location.longitude)
 
@@ -287,6 +305,7 @@ class ServiceSuiviVol : Service(), LocationListener, SensorEventListener {
                 position = position,
                 altitudeGpsM = altitudeGps,
                 altitudeBaroM = altitudeBaro,
+                altitudeCabineM = altitudeCabine,
                 vitesseLisseeKmh = vitesseLissee,
                 vitesseInstantaneeKmh = vitesseKmh,
                 capDeg = cap,
@@ -365,8 +384,12 @@ class ServiceSuiviVol : Service(), LocationListener, SensorEventListener {
         val maintenant = System.currentTimeMillis()
         if (maintenant - derniereMajBaroMs >= 1_000L) {
             derniereMajBaroMs = maintenant
-            val affichee = recalage.altitudeAffichee(brute)
-            SuiviVolEtat.mettreAJour { it.copy(altitudeBaroM = affichee, barometreDisponible = true) }
+            if (cabinePressurisee) {
+                SuiviVolEtat.mettreAJour { it.copy(altitudeBaroM = null, altitudeCabineM = brute, barometreDisponible = true) }
+            } else {
+                val affichee = recalage.altitudeAffichee(brute)
+                SuiviVolEtat.mettreAJour { it.copy(altitudeBaroM = affichee, altitudeCabineM = null, barometreDisponible = true) }
+            }
         }
     }
 

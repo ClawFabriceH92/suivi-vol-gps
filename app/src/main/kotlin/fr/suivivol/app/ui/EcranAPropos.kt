@@ -67,6 +67,9 @@ fun EcranAPropos(onRetour: () -> Unit) {
                     "et seul le côté hublot garantit une réception correcte.\n" +
                     "• L'altitude GPS est imprécise (± 20 à 50 m, biais ellipsoïdal) : le baromètre du téléphone, s'il existe, " +
                     "donne une valeur plus stable, recalée sur le GPS.\n" +
+                    "• Dans une cabine pressurisée, le baromètre mesure la pression de la cabine (≈ 1 500 à 2 500 m " +
+                    "équivalents), pas celle de l'extérieur : l'application le détecte, affiche alors l'altitude GPS en " +
+                    "gros et l'altitude cabine en petit.\n" +
                     "• La vitesse GPS est une vitesse sol : elle inclut le vent (jusqu'à ± 200 km/h en jet-stream).\n" +
                     "• La durée restante ignore les détours (attente, approche) : comptez 20 à 30 minutes de plus.\n" +
                     "• Gardez le mode avion activé avec la localisation en marche : c'est la configuration recommandée.",

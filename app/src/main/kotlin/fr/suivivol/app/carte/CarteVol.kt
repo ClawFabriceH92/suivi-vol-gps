@@ -3,10 +3,12 @@ package fr.suivivol.app.carte
 import android.graphics.Color
 import android.graphics.DashPathEffect
 import android.graphics.Paint
+import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
@@ -68,8 +70,9 @@ private class CouchesCarte(val carte: MapView) {
         carte.overlays.add(marqueurDepart)
         carte.overlays.add(marqueurArrivee)
         carte.overlays.add(marqueurPosition)
-        carte.overlays.add(ScaleBarOverlay(carte).apply { setAlignBottom(true); setAlignRight(false) })
-        carte.overlays.add(CopyrightOverlay(carte.context).apply { setCopyrightNotice(TuilesOsm.ATTRIBUTION) })
+        // Échelle en haut à gauche, attribution en bas à gauche : les deux ne se chevauchent pas.
+        carte.overlays.add(ScaleBarOverlay(carte).apply { setAlignBottom(false); setAlignRight(false); setScaleBarOffset(16, 16) })
+        carte.overlays.add(CopyrightOverlay(carte.context).apply { setCopyrightNotice(TuilesOsm.ATTRIBUTION); setAlignBottom(true); setAlignRight(false) })
     }
 }
 
@@ -115,6 +118,15 @@ fun CarteVol(
             }
         }
     }
+    // La MapView dessine ses tuiles et ses couches au-delà de ses bords ; un conteneur classique
+    // (clipChildren actif par défaut) les rogne, ce que l'hôte Compose des vues ne fait pas.
+    val conteneur = remember(carte) {
+        FrameLayout(contexte).apply {
+            clipChildren = true
+            clipToPadding = true
+            addView(carte, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        }
+    }
     val couches = remember(carte) { CouchesCarte(carte) }
     val dernierRecentrage = remember { intArrayOf(-1) }
 
@@ -147,9 +159,10 @@ fun CarteVol(
     }
 
     AndroidView(
-        modifier = modifier,
-        factory = { carte },
-        update = { vue ->
+        modifier = modifier.clipToBounds(),
+        factory = { conteneur },
+        update = { _ ->
+            val vue = carte
             vue.setUseDataConnection(!horsLigne)
 
             if (plan != null && plan != couches.planAffiche) {
