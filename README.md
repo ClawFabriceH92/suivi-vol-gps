@@ -89,6 +89,11 @@ Mise à jour depuis l'application : Réglages → « Vérifier les mises à jour
 `https://github.com/ClawFabriceH92/suivi-vol-gps/releases/latest/download/version.json` et propose
 le téléchargement de l'APK si `versionCode` est plus grand. La vérification n'est jamais automatique.
 
+**Dépôt privé** : tant que le dépôt est privé, cette URL répond 404 sans session GitHub. La
+vérification depuis l'application affiche alors « Réponse HTTP 404 » et le lien de téléchargement
+ne fonctionne que dans un navigateur connecté à GitHub. Rendre le dépôt public suffit à activer le
+mécanisme ; sinon il faudra un jeton d'accès (non prévu en v1).
+
 ### Clé de signature stable (recommandé)
 
 Créer une clé une fois pour toutes :
