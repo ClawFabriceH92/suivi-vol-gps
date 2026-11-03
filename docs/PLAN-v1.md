@@ -1,5 +1,8 @@
 # Plan v1 — Suivi de vol GPS
 
+> Statut : v0.1.0 construite et signée (versionCode 1), 38 tests unitaires verts.
+
+
 Cadrage : `docs/SPEC.md`. Squelette Gradle déjà en place (compose, osmdroid 6.1.20,
 `com.trucdecomptable.suivivol`, minSdk 26, `assembleDebug` vert).
 

@@ -4,6 +4,29 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// ---------------------------------------------------------------------------
+// Signature release : même keystore à chaque build, sinon Android refuse
+// l'installation par-dessus l'ancienne version. Le mot de passe vit dans
+// /root/.secrets (jamais dans le dépôt) ; la CI le recevra par secret.
+// ---------------------------------------------------------------------------
+val keystoreFile = File("/root/.secrets/keystores-android/suivivol-release.keystore")
+val keystoreEnv = File("/root/.secrets/keystores-android/suivivol-keystore.env")
+
+fun secretEnv(cle: String): String? {
+    System.getenv(cle)?.takeIf { it.isNotBlank() }?.let { return it }
+    if (!keystoreEnv.exists()) return null
+    keystoreEnv.readLines().forEach { ligne ->
+        val i = ligne.indexOf('=')
+        if (i > 0 && ligne.substring(0, i).trim() == cle) return ligne.substring(i + 1).trim()
+    }
+    return null
+}
+
+val storePassword = secretEnv("STORE_PASSWORD")
+val keyAliasValue = secretEnv("KEY_ALIAS") ?: "suivivol"
+val keyPasswordValue = secretEnv("KEY_PASSWORD") ?: storePassword
+val peutSigner = keystoreFile.exists() && !storePassword.isNullOrBlank()
+
 android {
     namespace = "com.trucdecomptable.suivivol"
     compileSdk = 35
@@ -17,10 +40,21 @@ android {
         resourceConfigurations += listOf("fr")
     }
 
+    signingConfigs {
+        if (peutSigner) {
+            create("release") {
+                storeFile = keystoreFile
+                storePassword = this@Build_gradle.storePassword
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Signé plus tard, quand la v1 sera validée sur un vol réel.
             isMinifyEnabled = false
+            if (peutSigner) signingConfig = signingConfigs.getByName("release")
         }
     }
 
