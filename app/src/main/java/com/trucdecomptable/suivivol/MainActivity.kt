@@ -23,10 +23,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.trucdecomptable.suivivol.ui.DialogueMiseAJour
 import com.trucdecomptable.suivivol.ui.EcranArrivee
 import com.trucdecomptable.suivivol.ui.EcranPreparation
 import com.trucdecomptable.suivivol.ui.EcranSuiviVol
 import com.trucdecomptable.suivivol.ui.VolViewModel
+import com.trucdecomptable.suivivol.update.UpdateManager
 import org.osmdroid.config.Configuration
 
 /** Écrans de l'application, encodés en Int pour rester sauvegardables dans le Bundle. */
@@ -96,6 +98,21 @@ private fun Racine() {
             ecran.enVol -> ecranApp = ECRAN_VOL
             !ecran.enVol && ecranApp == ECRAN_VOL -> ecranApp = ECRAN_ARRIVEE
         }
+    }
+
+    // Mise à jour : une vérification par lancement (UpdateManager limite de
+    // lui-même à une fois par heure), et la fenêtre suit son état.
+    val etatMaj by UpdateManager.state.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { UpdateManager.checkAtLaunch(contexte, skippedVersion = "") }
+
+    if (ecranApp != ECRAN_VOL) {
+        DialogueMiseAJour(
+            etat = etatMaj,
+            onTelecharger = { UpdateManager.download(contexte) },
+            onInstaller = { UpdateManager.install(contexte) },
+            onAutoriser = { UpdateManager.openInstallSettings(contexte) },
+            onFermer = { UpdateManager.dismiss() },
+        )
     }
 
     when (ecranApp) {

@@ -22,10 +22,23 @@ fun secretEnv(cle: String): String? {
     return null
 }
 
-val storePassword = secretEnv("STORE_PASSWORD")
-val keyAliasValue = secretEnv("KEY_ALIAS") ?: "suivivol"
-val keyPasswordValue = secretEnv("KEY_PASSWORD") ?: storePassword
-val peutSigner = keystoreFile.exists() && !storePassword.isNullOrBlank()
+// En CI, le keystore n'existe pas sur le disque : il arrive en base64 dans un
+// secret, on le matérialise dans un fichier temporaire. Le même keystore qu'en
+// local, sinon Android refuse l'installation par-dessus la version précédente.
+val keystoreCi: File? = System.getenv("SUIVIVOL_KEYSTORE_B64")
+    ?.takeIf { it.isNotBlank() }
+    ?.let { b64 ->
+        val f = File(System.getenv("RUNNER_TEMP") ?: System.getProperty("java.io.tmpdir"), "suivivol-release.keystore")
+        f.parentFile?.mkdirs()
+        f.writeBytes(java.util.Base64.getDecoder().decode(b64.trim()))
+        f
+    }
+
+val storePassword = secretEnv("SUIVIVOL_KEYSTORE_PASSWORD") ?: secretEnv("STORE_PASSWORD")
+val keyAliasValue = secretEnv("SUIVIVOL_KEY_ALIAS") ?: secretEnv("KEY_ALIAS") ?: "suivivol"
+val keyPasswordValue = secretEnv("SUIVIVOL_KEY_PASSWORD") ?: secretEnv("KEY_PASSWORD") ?: storePassword
+val keystoreRetenu = keystoreCi ?: keystoreFile.takeIf { it.exists() }
+val peutSigner = keystoreRetenu != null && !storePassword.isNullOrBlank()
 
 android {
     namespace = "com.trucdecomptable.suivivol"
@@ -35,15 +48,15 @@ android {
         applicationId = "com.fabrice.suivivol"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
         resourceConfigurations += listOf("fr")
     }
 
     signingConfigs {
         if (peutSigner) {
             create("release") {
-                storeFile = keystoreFile
+                storeFile = keystoreRetenu
                 storePassword = this@Build_gradle.storePassword
                 keyAlias = keyAliasValue
                 keyPassword = keyPasswordValue
@@ -69,6 +82,8 @@ android {
 
     buildFeatures {
         compose = true
+        // BuildConfig.VERSION_NAME sert au contrôle de mise à jour.
+        buildConfig = true
     }
 
     packaging {
@@ -92,6 +107,9 @@ dependencies {
 
     // Carte hors ligne : tuiles téléchargées avant le décollage, puis lues du cache.
     implementation("org.osmdroid:osmdroid-android:6.1.20")
+
+    // Mise à jour : téléchargement de l'APK depuis GitHub Releases.
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")

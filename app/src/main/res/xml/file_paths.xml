@@ -2,4 +2,6 @@
 <paths>
     <!-- Journal GPX écrit dans cacheDir/gpx et partagé via FileProvider. -->
     <cache-path name="gpx" path="gpx/" />
+    <!-- APK de mise à jour téléchargé dans filesDir/updates avant installation. -->
+    <files-path name="updates" path="updates/" />
 </paths>
