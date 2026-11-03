@@ -1,3 +1,5 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -30,7 +32,7 @@ val keystoreCi: File? = System.getenv("SUIVIVOL_KEYSTORE_B64")
     ?.let { b64 ->
         val f = File(System.getenv("RUNNER_TEMP") ?: System.getProperty("java.io.tmpdir"), "suivivol-release.keystore")
         f.parentFile?.mkdirs()
-        f.writeBytes(java.util.Base64.getDecoder().decode(b64.trim()))
+        f.writeBytes(Base64.getDecoder().decode(b64.trim()))
         f
     }
 
