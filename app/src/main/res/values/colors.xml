@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fond de l'icône : bleu de nuit, pour distinguer l'app du radar
+         (SpaceSkySea) qui vit sur un fond sombre différent. -->
+    <color name="ic_launcher_background">#0B2545</color>
+</resources>

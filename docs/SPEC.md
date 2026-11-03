@@ -19,6 +19,7 @@ technique et aucune adresse d'infrastructure.
 | Aéroports de départ et d'arrivée | **Saisis à la main** en v1, dans une base d'aéroports embarquée dans l'APK. | Une base locale (code IATA/OACI, nom, pays, latitude, longitude) est livrée dans les assets : recherche instantanée, hors ligne. |
 | Évolution prévue | **Les deux** : saisie manuelle *et* récupération automatique du vol (API) dans une version ultérieure. | L'écran de préparation est écrit autour d'une interface `SourceVol` (manuelle aujourd'hui, API demain) pour que l'ajout ne casse pas le reste. |
 | Réseau à bord | **Aucune dépendance au réseau en vol.** | Les tuiles de carte nécessaires sont téléchargées **avant** le décollage (wifi de l'aéroport ou de l'avion), puis lues depuis le cache. |
+| Périmètre | **Application séparée de SpaceSkySea Radar** (décision du 3 novembre 2026). | Aucune fusion : le radar suit le trafic environnant avec le réseau, cette app suit l'appareil du passager sans réseau. Pas de base d'aéroports ni de cache de tuiles dans l'app radar, et pas de dépendance à OpenSky/AISstream ici. |
 
 ### Point d'interprétation à confirmer
 
@@ -26,6 +27,22 @@ technique et aucune adresse d'infrastructure.
 La saisie manuelle des deux aéroports reste nécessaire en v1, sinon il n'y a rien à comparer pour
 calculer une distance et une durée restante. Si l'intention était plutôt « pas de saisie du tout,
 l'app devine le vol », c'est la version 2 (API), et il faut alors du réseau à bord.
+
+### Devinette du vol (décision du 3 novembre 2026)
+
+La saisie manuelle des aéroports de départ et d'arrivée **reste toujours possible** : c'est la
+voie de référence, celle qui marche sans rien attendre. La devinette ne fait que **pré-remplir**
+les deux champs, et un appui suffit à corriger.
+
+| Élément | Décision |
+|---|---|
+| Base d'aéroports | Embarquée dans l'APK, issue du jeu public **OurAirports** (domaine public, 86 335 aéroports, 1 789 en France). On n'embarque que les aéroports à service régulier. |
+| Détection du décollage | Vitesse sol > 150 km/h et altitude > 1 000 m tenues une minute. |
+| Aéroport de départ deviné | Dernier aéroport de la base à moins de 15 km de la position au sol avant le décollage. |
+| Destination devinée | Grand cercle dans l'axe de l'avion : on note chaque aéroport par son écart de cap (< 15°) et le détour par rapport à la distance directe ; dès que la vitesse verticale passe sous -3 m/s, l'aéroport le plus proche du point d'impact projeté prend le dessus. |
+| Confiance | Affichée et recalculée à chaque point GPS ; la liste des candidats se resserre au fil du vol. |
+| Correction | Toujours possible : les deux champs restent éditables, la devinette ne verrouille rien. |
+| Ce qui n'est pas devinable hors ligne | Numéro de vol et horaire théorique. Prévu en option via OpenSky **avant** le décollage, jamais en dépendance en vol. |
 
 ---
 

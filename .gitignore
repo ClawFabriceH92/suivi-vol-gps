@@ -5,3 +5,6 @@ local.properties
 .idea/
 *.apk
 *.keystore
+!gradle/wrapper/gradle-wrapper.jar
+captures/
+.DS_Store
