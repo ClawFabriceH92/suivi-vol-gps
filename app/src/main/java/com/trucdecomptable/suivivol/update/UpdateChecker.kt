@@ -81,7 +81,7 @@ object UpdateChecker {
             conn.connectTimeout = TIMEOUT_MS
             conn.readTimeout = TIMEOUT_MS
             conn.instanceFollowRedirects = true
-            conn.setRequestProperty("User-Agent", "NotesDeFrais/${BuildConfig.VERSION_NAME}")
+            conn.setRequestProperty("User-Agent", "SuiviVolGPS/${BuildConfig.VERSION_NAME}")
             if (github) conn.setRequestProperty("Accept", "application/vnd.github+json")
             val code = conn.responseCode
             if (code != HttpURLConnection.HTTP_OK) {
