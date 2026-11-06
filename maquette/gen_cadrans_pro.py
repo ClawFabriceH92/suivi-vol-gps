@@ -100,23 +100,23 @@ def cadran_arc(titre, unite, valeur_txt, valeur, vmin, vmax, pas_grad, pas_etiq,
     cx = cy = TAILLE / 2
     s = [lunette_et_face(cx, cy, uid)]
     for debut, fin, couleur in plages:
-        s.append(arc(cx, cy, R * 0.70, angle_valeur(debut, vmin, vmax, a0, a1),
-                     angle_valeur(fin, vmin, vmax, a0, a1), couleur, R * 0.055, 0.95))
+        s.append(arc(cx, cy, R * 0.885, angle_valeur(debut, vmin, vmax, a0, a1),
+                     angle_valeur(fin, vmin, vmax, a0, a1), couleur, R * 0.048, 0.95))
     g = vmin
     while g <= vmax + 1e-9:
         ang = angle_valeur(g, vmin, vmax, a0, a1)
         majeur = abs(((g - vmin) % pas_etiq)) < 1e-6
-        long = R * 0.13 if majeur else R * 0.07
-        x1, y1 = pt(cx, cy, R * 0.76, ang)
-        x2, y2 = pt(cx, cy, R * 0.76 - long, ang)
+        long = R * 0.135 if majeur else R * 0.075
+        x1, y1 = pt(cx, cy, R * 0.845, ang)
+        x2, y2 = pt(cx, cy, R * 0.845 - long, ang)
         s.append(f'<line x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}" '
                  f'stroke="{GRADUATION}" stroke-width="{3 if majeur else 1.4}" '
                  f'opacity="{1 if majeur else 0.4}"/>')
         if majeur:
-            tx, ty = pt(cx, cy, R * 0.55, ang)
+            tx, ty = pt(cx, cy, R * 0.575, ang)
             val = int(g)
             etiq = f"{val//1000}k" if pas_etiq >= 1000 and val and val % 1000 == 0 else str(val)
-            s.append(texte(tx, ty + R * 0.055, etiq, R * 0.15))
+            s.append(texte(tx, ty + R * 0.06, etiq, R * 0.165))
         g += pas_grad
     if zero:
         zx, zy = pt(cx, cy, R * 0.33, (a0 + a1) / 2)
@@ -124,7 +124,7 @@ def cadran_arc(titre, unite, valeur_txt, valeur, vmin, vmax, pas_grad, pas_etiq,
     if valeur is None:
         s.append(moyeu(cx, cy, R))
     else:
-        s.append(aiguille(cx, cy, R, angle_valeur(valeur, vmin, vmax, a0, a1)))
+        s.append(aiguille(cx, cy, R, angle_valeur(valeur, vmin, vmax, a0, a1), avant=0.795))
     corp = "".join(s)
     return f'''
   <div class="cadran">

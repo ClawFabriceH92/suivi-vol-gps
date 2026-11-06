@@ -319,9 +319,11 @@ private fun CadranInstrument(
                     startAngle = (debut + 90.0).toFloat(),
                     sweepAngle = (fin - debut).toFloat(),
                     useCenter = false,
-                    topLeft = Offset(centre.x - rayon * 0.70f, centre.y - rayon * 0.70f),
-                    size = Size(rayon * 1.40f, rayon * 1.40f),
-                    style = Stroke(width = rayon * 0.055f),
+                    // Bande extérieure : l'arc ne doit croiser ni les graduations
+                    // ni les chiffres (constaté illisible sur petit cadran).
+                    topLeft = Offset(centre.x - rayon * 0.885f, centre.y - rayon * 0.885f),
+                    size = Size(rayon * 1.77f, rayon * 1.77f),
+                    style = Stroke(width = rayon * 0.048f),
                 )
             }
 
@@ -330,9 +332,9 @@ private fun CadranInstrument(
             while (graduation <= max + 1e-9) {
                 val angle = CadranMath.angleAiguille(graduation, min, max, angleDebut, angleFin)
                 val estEtiquette = estMultiple(graduation - min, pasEtiquette)
-                val longueur = if (estEtiquette) rayon * 0.13f else rayon * 0.07f
-                val p1 = pointSurCercle(centre, rayon * 0.76f, angle)
-                val p2 = pointSurCercle(centre, rayon * 0.76f - longueur, angle)
+                val longueur = if (estEtiquette) rayon * 0.135f else rayon * 0.075f
+                val p1 = pointSurCercle(centre, rayon * 0.845f, angle)
+                val p2 = pointSurCercle(centre, rayon * 0.845f - longueur, angle)
                 drawLine(
                     color = if (estEtiquette) GRADUATION else GRADUATION_FINE,
                     start = p1,
@@ -340,11 +342,11 @@ private fun CadranInstrument(
                     strokeWidth = if (estEtiquette) 3f else 1.4f,
                 )
                 if (estEtiquette) {
-                    val pTexte = pointSurCercle(centre, rayon * 0.55f, angle)
+                    val pTexte = pointSurCercle(centre, rayon * 0.575f, angle)
                     texteCadran(
                         etiquette(graduation, pasEtiquette),
                         pTexte,
-                        taille = rayon * 0.15f,
+                        taille = rayon * 0.165f,
                         couleur = TEXTE_CADRAN,
                         decalageY = rayon * 0.055f,
                     )
@@ -353,7 +355,7 @@ private fun CadranInstrument(
             }
             if (utilisable) {
                 val angle = CadranMath.angleAiguille(valeur!!, min, max, angleDebut, angleFin)
-                dessinerAiguille(centre, rayon, angle, longueurAvant = 0.82f, longueurArriere = 0.18f)
+                dessinerAiguille(centre, rayon, angle, longueurAvant = 0.795f, longueurArriere = 0.18f)
             } else {
                 dessinerMoyeu(centre, rayon)
             }

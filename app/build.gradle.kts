@@ -50,8 +50,8 @@ android {
         applicationId = "com.fabrice.suivivol"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.5.0"
+        versionCode = 11
+        versionName = "0.5.1"
         resourceConfigurations += listOf("fr")
     }
 
