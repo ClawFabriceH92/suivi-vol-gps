@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -241,6 +244,9 @@ fun EcranSuiviVol(
     arreterSuivi: () -> Unit,
 ) {
     var dialogueCorrection by remember { mutableStateOf(false) }
+    // La carte reste la vue par défaut ; les cadrans sont à un geste et le choix
+    // est mémorisé pendant toute la session de vol.
+    var vueCadrans by rememberSaveable { mutableStateOf(false) }
 
     // Écran maintenu allumé : on ne veut pas que la luminosité baisse en vol.
     val vue = LocalView.current
@@ -250,13 +256,34 @@ fun EcranSuiviVol(
     }
 
     Column(Modifier.fillMaxSize()) {
-        CarteVol(
-            depart = ecran.depart,
-            arrivee = ecran.arrivee,
-            dernier = ecran.dernier,
-            points = ecran.points,
-            modifier = Modifier.weight(1f),
-        )
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FilterChip(
+                selected = vueCadrans,
+                onClick = { vueCadrans = true },
+                label = { Text("Cadrans") },
+                modifier = Modifier.weight(1f),
+            )
+            FilterChip(
+                selected = !vueCadrans,
+                onClick = { vueCadrans = false },
+                label = { Text("Carte") },
+                modifier = Modifier.weight(1f),
+            )
+        }
+        if (vueCadrans) {
+            TableauDeBord(dernier = ecran.dernier, modifier = Modifier.weight(1f))
+        } else {
+            CarteVol(
+                depart = ecran.depart,
+                arrivee = ecran.arrivee,
+                dernier = ecran.dernier,
+                points = ecran.points,
+                modifier = Modifier.weight(1f),
+            )
+        }
         BandeauVol(ecran = ecran, onCorriger = { dialogueCorrection = true })
         Button(onClick = arreterSuivi, modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Icon(Icons.Filled.Stop, null)
@@ -489,16 +516,25 @@ private fun CarteVol(
 ) {
     val carte = remember { mutableStateOf<MapView?>(null) }
     val aCadre = remember { mutableStateOf(false) }
+    val contexte = LocalContext.current
+    // Sans réseau et sans tuiles déjà en cache, la carte reste vide : on le dit
+    // au lieu de laisser un grand rectangle gris (cas du vol sans wifi).
+    var horsLigne by remember { mutableStateOf(false) }
+    LaunchedEffect(dernier) {
+        horsLigne = !reseauDisponible(contexte)
+    }
 
-    AndroidView(
+    Box(modifier) {
+        AndroidView(
         factory = { contexte ->
             MapView(contexte).apply {
                 setTileSource(SourceTuiles.OSM)
                 setMultiTouchControls(true)
+                setUseDataConnection(true)
                 carte.value = this
             }
         },
-        modifier = modifier,
+        modifier = Modifier.fillMaxSize(),
         update = { vue ->
             // Reconstruit les calques : ligne du trajet puis marqueurs.
             vue.overlays.clear()
@@ -537,11 +573,45 @@ private fun CarteVol(
             }
             vue.invalidate()
         },
-    )
+        )
 
-    // Cycle de vie osmdroid : on détache la carte quand l'écran quitte la composition.
+        // Cycle de vie osmdroid : sans onResume(), le fournisseur de tuiles peut
+        // rester à l'arrêt et la carte s'affiche vide.
+        LaunchedEffect(carte.value) { carte.value?.onResume() }
+
+        if (horsLigne) {
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.92f),
+                modifier = Modifier.align(Alignment.TopCenter).padding(8.dp),
+            ) {
+                Text(
+                    "Carte hors ligne : pas de réseau et aucune tuile en cache. " +
+                        "Utilise « Préparer la carte » avant le décollage.",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(8.dp),
+                )
+            }
+        }
+    }
+
     DisposableEffect(Unit) {
-        onDispose { carte.value?.onDetach() }
+        onDispose {
+            carte.value?.onPause()
+            carte.value?.onDetach()
+        }
+    }
+}
+
+/** Vrai si une connexion réseau est disponible (pour expliquer une carte vide). */
+private fun reseauDisponible(contexte: Context): Boolean {
+    return try {
+        val gestionnaire = contexte.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            ?: return true
+        val reseau = gestionnaire.activeNetwork ?: return false
+        val capacites = gestionnaire.getNetworkCapabilities(reseau) ?: return false
+        capacites.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    } catch (_: Throwable) {
+        true
     }
 }
 
