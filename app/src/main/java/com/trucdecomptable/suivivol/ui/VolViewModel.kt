@@ -13,6 +13,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import com.trucdecomptable.suivivol.data.Aeroport
 import com.trucdecomptable.suivivol.data.Aeroports
+import com.trucdecomptable.suivivol.data.ModeAffichage
+import com.trucdecomptable.suivivol.data.ReglagesVol
+import com.trucdecomptable.suivivol.data.ReglagesVolStore
 import com.trucdecomptable.suivivol.vol.DevinetteVol
 import com.trucdecomptable.suivivol.vol.EtatVol
 import com.trucdecomptable.suivivol.vol.JournalGpx
@@ -88,6 +91,23 @@ class VolViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _detection = MutableStateFlow(Detection())
     val detection: StateFlow<Detection> = _detection.asStateFlow()
+
+    // --- Réglages d'affichage (modèle, alternance, transparence) ---
+    private val reglagesStore = ReglagesVolStore(app)
+    private val _reglages = MutableStateFlow(reglagesStore.charger())
+    val reglages: StateFlow<ReglagesVol> = _reglages.asStateFlow()
+
+    fun setModeAffichage(mode: ModeAffichage) = majReglages { it.copy(mode = mode) }
+    fun setAlterne(actif: Boolean) = majReglages { it.copy(alterne = actif) }
+    fun setDureeAlternance(secondes: Int) = majReglages { it.copy(dureeAlternanceSec = secondes) }
+    fun setTransparence(pourcent: Int) =
+        majReglages { it.copy(transparenceCadrans = pourcent.coerceIn(0, 100)) }
+
+    private fun majReglages(transform: (ReglagesVol) -> ReglagesVol) {
+        val nouveau = transform(_reglages.value)
+        _reglages.value = nouveau
+        reglagesStore.enregistrer(nouveau)
+    }
 
     init {
         // Dès l'ouverture : on cherche la position et l'aéroport de départ, sans

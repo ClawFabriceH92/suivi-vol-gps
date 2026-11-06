@@ -238,5 +238,59 @@ defs.forEach(d => {
   const t = document.createElement("div"); t.className = "titre-c"; t.textContent = d.titre; el.appendChild(t);
 });
 </script>
+<!-- ÉCRAN 4 : paramétrage -->
+<div class="colonne">
+  <div class="phone">
+    <div class="statut"><span>09:13</span><span>réglages enregistrés</span></div>
+    <div class="contenu">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="color:#9fb2d0; font-size:20px;">←</span>
+        <h1 style="margin:0">Paramétrage</h1>
+      </div>
+
+      <div style="margin-top:16px">
+        <div class="label" style="color:#e8eef8; font-size:14px; text-transform:none; letter-spacing:0">Affichage en vol</div>
+        <div class="sous" style="margin-top:4px">Ce que tu veux voir pendant le suivi.</div>
+        <div style="display:flex; gap:8px; margin-top:10px">
+          <div class="onglet" style="flex:1; padding:10px; font-size:12px">Carte seule</div>
+          <div class="onglet" style="flex:1; padding:10px; font-size:12px">Cadrans seuls</div>
+          <div class="onglet actif" style="flex:1; padding:10px; font-size:12px">Les deux</div>
+        </div>
+      </div>
+
+      <div style="height:1px; background:#263047; margin:16px 0"></div>
+
+      <div style="display:flex; align-items:center; gap:10px">
+        <div style="flex:1">
+          <div style="color:#e8eef8; font-size:14px; font-weight:600">Mode alterné</div>
+          <div class="sous" style="margin-top:2px">Cadrans puis carte, à tour de rôle.</div>
+        </div>
+        <div style="width:46px; height:26px; border-radius:14px; background:#1f6feb; position:relative">
+          <div style="position:absolute; right:3px; top:3px; width:20px; height:20px; border-radius:50%; background:#fff"></div>
+        </div>
+      </div>
+      <div class="sous" style="margin-top:10px">Durée de chaque vue</div>
+      <div style="display:flex; gap:8px; margin-top:6px">
+        <div class="onglet" style="flex:1; padding:9px; font-size:12px">5 s</div>
+        <div class="onglet actif" style="flex:1; padding:9px; font-size:12px">10 s</div>
+        <div class="onglet" style="flex:1; padding:9px; font-size:12px">20 s</div>
+        <div class="onglet" style="flex:1; padding:9px; font-size:12px">30 s</div>
+      </div>
+
+      <div style="height:1px; background:#263047; margin:16px 0"></div>
+
+      <div style="color:#e8eef8; font-size:14px; font-weight:600">Transparence des cadrans</div>
+      <div class="sous" style="margin-top:2px">À 100 % la carte est masquée, à 0 % il ne reste que les traits.</div>
+      <div style="margin-top:16px; position:relative; height:6px; border-radius:3px; background:#263047">
+        <div style="position:absolute; left:0; top:0; height:6px; width:85%; border-radius:3px; background:#1f6feb"></div>
+        <div style="position:absolute; left:85%; top:-7px; width:20px; height:20px; border-radius:50%; background:#fff"></div>
+      </div>
+      <div style="color:#e8eef8; font-size:13px; font-weight:600; margin-top:12px">85 %</div>
+      <div class="sous" style="margin-top:14px">Les réglages s'appliquent immédiatement, même en plein vol.</div>
+    </div>
+  </div>
+  <div class="legende">4. Paramétrage — affichage, alternance, transparence</div>
+</div>
+
 </body>
 </html>

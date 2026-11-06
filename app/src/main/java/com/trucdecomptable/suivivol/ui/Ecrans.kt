@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -59,9 +60,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import com.trucdecomptable.suivivol.data.Aeroport
+import com.trucdecomptable.suivivol.data.ModeAffichage
+import com.trucdecomptable.suivivol.data.ReglagesVol
 import com.trucdecomptable.suivivol.data.SourceTuiles
 import com.trucdecomptable.suivivol.data.Geo
 import com.trucdecomptable.suivivol.util.JournalPlantage
+import com.trucdecomptable.suivivol.vol.Alternance
 import com.trucdecomptable.suivivol.vol.JournalGpx
 import com.trucdecomptable.suivivol.vol.OrigineVol
 import com.trucdecomptable.suivivol.vol.PointVol
@@ -102,6 +106,7 @@ fun EcranPreparation(
     choisirArrivee: (Aeroport) -> Unit,
     demarrerSuivi: () -> Unit,
     relancerDetection: () -> Unit,
+    onOuvrirParametres: () -> Unit,
 ) {
     val contexte = LocalContext.current
     var dialogueAeroports by remember { mutableStateOf(false) }
@@ -111,7 +116,12 @@ fun EcranPreparation(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Prêt à décoller", style = MaterialTheme.typography.headlineMedium)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Prêt à décoller", Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium)
+            IconButton(onClick = onOuvrirParametres) {
+                Icon(Icons.Filled.Settings, contentDescription = "Paramétrage")
+            }
+        }
         Text(
             "Tout est détecté automatiquement. Un seul bouton à presser.",
             style = MaterialTheme.typography.bodySmall,
@@ -326,9 +336,11 @@ private fun DialogueAeroports(
 @Composable
 fun EcranSuiviVol(
     ecran: EcranVol,
+    reglages: ReglagesVol,
     rechercher: (String) -> List<Aeroport>,
     corrigerArrivee: (Aeroport) -> Unit,
     arreterSuivi: () -> Unit,
+    onOuvrirParametres: () -> Unit,
 ) {
     var dialogueCorrection by remember { mutableStateOf(false) }
 
@@ -339,20 +351,61 @@ fun EcranSuiviVol(
         onDispose { vue.keepScreenOn = false }
     }
 
+    // Mode alterné : on bascule entre cadrans et carte par créneaux.
+    val debutVol = remember { android.os.SystemClock.elapsedRealtime() }
+    var ecouleMs by remember { mutableStateOf(0L) }
+    LaunchedEffect(reglages.alterne, reglages.dureeAlternanceSec) {
+        if (!reglages.alterne) return@LaunchedEffect
+        while (true) {
+            ecouleMs = android.os.SystemClock.elapsedRealtime() - debutVol
+            kotlinx.coroutines.delay(250)
+        }
+    }
+    val creneauCadrans = Alternance.cadransAffiches(ecouleMs, reglages.dureeAlternanceSec)
+    val montrerCarte = when (reglages.mode) {
+        ModeAffichage.CARTE -> true
+        ModeAffichage.CADRANS -> false
+        ModeAffichage.DEUX -> !reglages.alterne || !creneauCadrans
+    }
+    val montrerCadrans = when (reglages.mode) {
+        ModeAffichage.CARTE -> false
+        ModeAffichage.CADRANS -> true
+        ModeAffichage.DEUX -> !reglages.alterne || creneauCadrans
+    }
+
     Column(Modifier.fillMaxSize()) {
-        // La carte occupe le fond, les cadrans se posent dessus : on garde le
-        // repère géographique sans quitter les instruments.
         Box(Modifier.weight(1f)) {
-            CarteVol(
-                depart = ecran.depart,
-                arrivee = ecran.arrivee,
-                dernier = ecran.dernier,
-                points = ecran.points,
-                modifier = Modifier.fillMaxSize(),
-            )
-            // Voile léger : les tuiles restent lisibles, les cadrans se détachent.
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.22f)))
-            TableauDeBord(dernier = ecran.dernier, modifier = Modifier.fillMaxSize())
+            if (montrerCarte) {
+                CarteVol(
+                    depart = ecran.depart,
+                    arrivee = ecran.arrivee,
+                    dernier = ecran.dernier,
+                    points = ecran.points,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            if (montrerCarte && montrerCadrans) {
+                // Voile léger : les tuiles restent lisibles, les cadrans se détachent.
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.22f)))
+            }
+            if (montrerCadrans) {
+                TableauDeBord(
+                    dernier = ecran.dernier,
+                    modifier = Modifier.fillMaxSize(),
+                    opacitePanneaux = reglages.transparenceCadrans,
+                )
+            }
+            // Accès direct au paramétrage, y compris en plein vol.
+            IconButton(
+                onClick = onOuvrirParametres,
+                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+            ) {
+                Icon(
+                    Icons.Filled.Settings,
+                    contentDescription = "Paramétrage",
+                    tint = Color.White,
+                )
+            }
         }
         BandeauVol(ecran = ecran, onCorriger = { dialogueCorrection = true })
         Button(onClick = arreterSuivi, modifier = Modifier.fillMaxWidth().padding(12.dp)) {

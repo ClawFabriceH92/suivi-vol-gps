@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trucdecomptable.suivivol.ui.DialogueMiseAJour
 import com.trucdecomptable.suivivol.ui.EcranArrivee
+import com.trucdecomptable.suivivol.ui.EcranParametres
 import com.trucdecomptable.suivivol.ui.EcranPreparation
 import com.trucdecomptable.suivivol.ui.EcranSuiviVol
 import com.trucdecomptable.suivivol.ui.VolViewModel
@@ -35,6 +36,7 @@ import org.osmdroid.config.Configuration
 private const val ECRAN_PREPARATION = 0
 private const val ECRAN_VOL = 1
 private const val ECRAN_ARRIVEE = 2
+private const val ECRAN_PARAMETRES = 3
 
 /**
  * Point d'entrée : initialise osmdroid (user-agent non vide obligatoire pour les
@@ -72,6 +74,7 @@ private fun Racine() {
     val vueModele: VolViewModel = viewModel(key = "suivi-vol-$cleSession")
     val ecran by vueModele.ecran.collectAsStateWithLifecycle()
     val detection by vueModele.detection.collectAsStateWithLifecycle()
+    val reglages by vueModele.reglages.collectAsStateWithLifecycle()
 
     // Écran courant : un simple état local suffit, pas de bibliothèque de nav.
     var ecranApp by rememberSaveable { mutableIntStateOf(ECRAN_PREPARATION) }
@@ -101,7 +104,7 @@ private fun Racine() {
     // Transitions pilotées par l'état de vol : préparation → vol → arrivée.
     LaunchedEffect(ecran.enVol) {
         when {
-            ecran.enVol -> ecranApp = ECRAN_VOL
+            ecran.enVol && ecranApp != ECRAN_PARAMETRES -> ecranApp = ECRAN_VOL
             !ecran.enVol && ecranApp == ECRAN_VOL -> ecranApp = ECRAN_ARRIVEE
         }
     }
@@ -131,9 +134,20 @@ private fun Racine() {
             choisirArrivee = vueModele::choisirArrivee,
             demarrerSuivi = vueModele::demarrerSuivi,
             relancerDetection = vueModele::lancerDetection,
+            onOuvrirParametres = { ecranApp = ECRAN_PARAMETRES },
+        )
+        ECRAN_PARAMETRES -> EcranParametres(
+            reglages = reglages,
+            onMode = vueModele::setModeAffichage,
+            onAlterne = vueModele::setAlterne,
+            onDuree = vueModele::setDureeAlternance,
+            onTransparence = vueModele::setTransparence,
+            onRetour = { ecranApp = if (ecran.enVol) ECRAN_VOL else ECRAN_PREPARATION },
         )
         ECRAN_VOL -> EcranSuiviVol(
             ecran = ecran,
+            reglages = reglages,
+            onOuvrirParametres = { ecranApp = ECRAN_PARAMETRES },
             rechercher = vueModele::rechercher,
             corrigerArrivee = vueModele::corrigerArrivee,
             arreterSuivi = vueModele::arreterSuivi,

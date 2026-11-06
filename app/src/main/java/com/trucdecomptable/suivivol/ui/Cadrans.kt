@@ -42,7 +42,12 @@ import kotlin.math.sin
  * affichée « — » et l'aiguille reste au repos, jamais au hasard.
  */
 @Composable
-fun TableauDeBord(dernier: PointVol?, modifier: Modifier = Modifier) {
+fun TableauDeBord(
+    dernier: PointVol?,
+    modifier: Modifier = Modifier,
+    /** Opacité des panneaux, en pourcentage : 100 = opaques, 0 = invisibles. */
+    opacitePanneaux: Int = 85,
+) {
     val couleurCadran = MaterialTheme.colorScheme.outlineVariant
     val couleurAiguille = MaterialTheme.colorScheme.error
     val couleurAccent = MaterialTheme.colorScheme.primary
@@ -56,7 +61,7 @@ fun TableauDeBord(dernier: PointVol?, modifier: Modifier = Modifier) {
             Modifier.fillMaxWidth().weight(1f),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            PanneauCadran(Modifier.weight(1f).aspectRatio(1f)) {
+            PanneauCadran(Modifier.weight(1f).aspectRatio(1f), opacitePanneaux) {
                 CadranCap(
                 cap = dernier?.capDeg,
                 modifier = Modifier.weight(1f).aspectRatio(1f),
@@ -65,7 +70,7 @@ fun TableauDeBord(dernier: PointVol?, modifier: Modifier = Modifier) {
                     couleurTexte = couleurTexte,
                 )
             }
-            PanneauCadran(Modifier.weight(1f).aspectRatio(1f)) {
+            PanneauCadran(Modifier.weight(1f).aspectRatio(1f), opacitePanneaux) {
                 CadranAArc(
                     titre = "VARIOMÈTRE",
                 valeurTexte = CadranMath.libelleVitesseVerticale(dernier?.vitesseVerticaleMs),
@@ -87,7 +92,7 @@ fun TableauDeBord(dernier: PointVol?, modifier: Modifier = Modifier) {
             Modifier.fillMaxWidth().weight(1f),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            PanneauCadran(Modifier.weight(1f).aspectRatio(1f)) {
+            PanneauCadran(Modifier.weight(1f).aspectRatio(1f), opacitePanneaux) {
                 CadranAArc(
                     titre = "VITESSE SOL",
                 valeurTexte = CadranMath.libelleVitesse(dernier?.vitesseSolKmh),
@@ -104,7 +109,7 @@ fun TableauDeBord(dernier: PointVol?, modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxSize(),
                 )
             }
-            PanneauCadran(Modifier.weight(1f).aspectRatio(1f)) {
+            PanneauCadran(Modifier.weight(1f).aspectRatio(1f), opacitePanneaux) {
                 CadranAArc(
                     titre = "ALTITUDE",
                 valeurTexte = CadranMath.libelleAltitude(dernier?.altitudeM),
@@ -130,9 +135,14 @@ fun TableauDeBord(dernier: PointVol?, modifier: Modifier = Modifier) {
  * instruments, mais les aiguilles restent lisibles sur les tuiles.
  */
 @Composable
-private fun PanneauCadran(modifier: Modifier = Modifier, contenu: @Composable () -> Unit) {
+private fun PanneauCadran(
+    modifier: Modifier = Modifier,
+    opacitePourcent: Int = 85,
+    contenu: @Composable () -> Unit,
+) {
+    val alpha = (opacitePourcent.coerceIn(0, 100) / 100f * 0.94f)
     Surface(
-        color = Color(0xD90B0E14),
+        color = Color(0x0B0E14).copy(alpha = alpha),
         shape = RoundedCornerShape(18.dp),
         border = BorderStroke(1.dp, Color(0x33FFFFFF)),
         modifier = modifier,
