@@ -1,5 +1,6 @@
 package com.trucdecomptable.suivivol.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,7 +9,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -46,22 +49,25 @@ fun TableauDeBord(dernier: PointVol?, modifier: Modifier = Modifier) {
     val couleurTexte = MaterialTheme.colorScheme.onSurface
 
     Column(
-        modifier.fillMaxSize().padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier.fillMaxSize().padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(
             Modifier.fillMaxWidth().weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            CadranCap(
+            PanneauCadran(Modifier.weight(1f).aspectRatio(1f)) {
+                CadranCap(
                 cap = dernier?.capDeg,
                 modifier = Modifier.weight(1f).aspectRatio(1f),
                 couleurCadran = couleurCadran,
                 couleurAiguille = couleurAiguille,
-                couleurTexte = couleurTexte,
-            )
-            CadranAArc(
-                titre = "VARIOMÈTRE",
+                    couleurTexte = couleurTexte,
+                )
+            }
+            PanneauCadran(Modifier.weight(1f).aspectRatio(1f)) {
+                CadranAArc(
+                    titre = "VARIOMÈTRE",
                 valeurTexte = CadranMath.libelleVitesseVerticale(dernier?.vitesseVerticaleMs),
                 valeur = dernier?.vitesseVerticaleMs,
                 min = -10.0,
@@ -72,16 +78,18 @@ fun TableauDeBord(dernier: PointVol?, modifier: Modifier = Modifier) {
                 couleurAiguille = couleurAiguille,
                 couleurAccent = couleurAccent,
                 couleurTexte = couleurTexte,
-                graduationTousLes = 2.0,
-                modifier = Modifier.weight(1f).aspectRatio(1f),
-            )
+                    graduationTousLes = 2.0,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
         Row(
             Modifier.fillMaxWidth().weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            CadranAArc(
-                titre = "VITESSE SOL",
+            PanneauCadran(Modifier.weight(1f).aspectRatio(1f)) {
+                CadranAArc(
+                    titre = "VITESSE SOL",
                 valeurTexte = CadranMath.libelleVitesse(dernier?.vitesseSolKmh),
                 valeur = dernier?.vitesseSolKmh,
                 min = 0.0,
@@ -92,11 +100,13 @@ fun TableauDeBord(dernier: PointVol?, modifier: Modifier = Modifier) {
                 couleurAiguille = couleurAiguille,
                 couleurAccent = couleurAccent,
                 couleurTexte = couleurTexte,
-                graduationTousLes = 50.0,
-                modifier = Modifier.weight(1f).aspectRatio(1f),
-            )
-            CadranAArc(
-                titre = "ALTITUDE",
+                    graduationTousLes = 50.0,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            PanneauCadran(Modifier.weight(1f).aspectRatio(1f)) {
+                CadranAArc(
+                    titre = "ALTITUDE",
                 valeurTexte = CadranMath.libelleAltitude(dernier?.altitudeM),
                 valeur = dernier?.altitudeM,
                 min = 0.0,
@@ -107,10 +117,27 @@ fun TableauDeBord(dernier: PointVol?, modifier: Modifier = Modifier) {
                 couleurAiguille = couleurAiguille,
                 couleurAccent = couleurAccent,
                 couleurTexte = couleurTexte,
-                graduationTousLes = 1000.0,
-                modifier = Modifier.weight(1f).aspectRatio(1f),
-            )
+                    graduationTousLes = 1000.0,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
+    }
+}
+
+/**
+ * Panneau translucide derrière chaque cadran : la carte reste visible entre les
+ * instruments, mais les aiguilles restent lisibles sur les tuiles.
+ */
+@Composable
+private fun PanneauCadran(modifier: Modifier = Modifier, contenu: @Composable () -> Unit) {
+    Surface(
+        color = Color(0xD90B0E14),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, Color(0x33FFFFFF)),
+        modifier = modifier,
+    ) {
+        contenu()
     }
 }
 
@@ -126,8 +153,8 @@ private fun CadranCap(
     val utilisable = CadranMath.valeurUtilisable(cap)
     val capNormalise = if (utilisable) CadranMath.capNormalise(cap!!) else 0.0
 
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Canvas(Modifier.fillMaxWidth().weight(1f).aspectRatio(1f)) {
+    Column(modifier.fillMaxSize().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Canvas(Modifier.fillMaxWidth().weight(1f)) {
             val rayon = size.minDimension / 2f * 0.92f
             val centre = Offset(size.width / 2f, size.height / 2f)
 
@@ -204,8 +231,8 @@ private fun CadranAArc(
 ) {
     val utilisable = CadranMath.valeurUtilisable(valeur)
 
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Canvas(Modifier.fillMaxWidth().weight(1f).aspectRatio(1f)) {
+    Column(modifier.fillMaxSize().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Canvas(Modifier.fillMaxWidth().weight(1f)) {
             val rayon = size.minDimension / 2f * 0.90f
             val centre = Offset(size.width / 2f, size.height / 2f)
 

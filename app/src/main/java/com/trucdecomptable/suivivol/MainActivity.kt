@@ -71,6 +71,7 @@ private fun Racine() {
     var cleSession by rememberSaveable { mutableIntStateOf(0) }
     val vueModele: VolViewModel = viewModel(key = "suivi-vol-$cleSession")
     val ecran by vueModele.ecran.collectAsStateWithLifecycle()
+    val detection by vueModele.detection.collectAsStateWithLifecycle()
 
     // Écran courant : un simple état local suffit, pas de bibliothèque de nav.
     var ecranApp by rememberSaveable { mutableIntStateOf(ECRAN_PREPARATION) }
@@ -81,7 +82,12 @@ private fun Racine() {
     var permissionRefusee by rememberSaveable { mutableStateOf(false) }
     val lanceurPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { accordee -> permissionRefusee = !accordee }
+    ) { accordee ->
+        permissionRefusee = !accordee
+        // Permission accordée : on relance la détection automatique, sinon
+        // l'écran resterait sur « Localisation refusée » jusqu'au prochain lancement.
+        if (accordee) vueModele.lancerDetection()
+    }
     LaunchedEffect(Unit) {
         if (ContextCompat.checkSelfPermission(contexte, Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED
@@ -118,14 +124,13 @@ private fun Racine() {
     when (ecranApp) {
         ECRAN_PREPARATION -> EcranPreparation(
             ecran = ecran,
+            detection = detection,
             permissionRefusee = permissionRefusee,
             rechercher = vueModele::rechercher,
-            devinerDepart = vueModele::devinerDepart,
             choisirDepart = vueModele::choisirDepart,
             choisirArrivee = vueModele::choisirArrivee,
-            corrigerArrivee = vueModele::corrigerArrivee,
             demarrerSuivi = vueModele::demarrerSuivi,
-            effacerChoix = { cleSession++ },
+            relancerDetection = vueModele::lancerDetection,
         )
         ECRAN_VOL -> EcranSuiviVol(
             ecran = ecran,

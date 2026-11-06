@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
+import android.os.Looper
 import android.location.LocationManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
@@ -37,6 +38,20 @@ data class EcranVol(
     val dernier: PointVol?,
     val points: List<PointVol>,
     val message: String?,
+)
+
+/**
+ * Détection automatique de la situation, faite à l'ouverture de l'application :
+ * position GPS et aéroport de départ le plus proche. L'utilisateur n'a plus rien
+ * à choisir avant de démarrer.
+ */
+data class Detection(
+    val enCours: Boolean = true,
+    val aeroport: Aeroport? = null,
+    val distanceKm: Double? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val erreur: String? = null,
 )
 
 /**
@@ -71,6 +86,93 @@ class VolViewModel(application: Application) : AndroidViewModel(application) {
     )
     val ecran: StateFlow<EcranVol> = _ecran.asStateFlow()
 
+    private val _detection = MutableStateFlow(Detection())
+    val detection: StateFlow<Detection> = _detection.asStateFlow()
+
+    init {
+        // Dès l'ouverture : on cherche la position et l'aéroport de départ, sans
+        // rien demander à l'utilisateur.
+        lancerDetection()
+    }
+
+    /**
+     * Cherche une position puis l'aéroport le plus proche. Abonnement coupé dès
+     * le premier point trouvé (ou au bout de 20 s). Permission refusée : message
+     * clair, aucune exception.
+     */
+    @SuppressLint("MissingPermission")
+    fun lancerDetection() {
+        if (ContextCompat.checkSelfPermission(app, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            _detection.value = Detection(enCours = false, erreur = "Localisation refusée : autorise l'accès à la position pour la détection automatique.")
+            return
+        }
+        _detection.value = Detection(enCours = true)
+
+        // Position déjà connue : réponse immédiate, pas besoin d'attendre un satellite.
+        val connue = positionConnue()
+        if (connue != null) {
+            appliquerDetection(connue.latitude, connue.longitude)
+            return
+        }
+        try {
+            gestionnaire.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER, 1000L, 0f, ecouteurDetection, Looper.getMainLooper()
+            )
+            gestionnaire.requestLocationUpdates(
+                LocationManager.NETWORK_PROVIDER, 1000L, 0f, ecouteurDetection, Looper.getMainLooper()
+            )
+        } catch (e: SecurityException) {
+            _detection.value = Detection(enCours = false, erreur = "Accès à la position refusé.")
+            return
+        } catch (e: IllegalArgumentException) {
+            _detection.value = Detection(enCours = false, erreur = "GPS indisponible sur cet appareil.")
+            return
+        }
+        // Garde-fou : on n'attend pas indéfiniment.
+        principal.postDelayed({
+            if (_detection.value.enCours) {
+                _detection.value = _detection.value.copy(
+                    enCours = false,
+                    erreur = "Position pas encore disponible : tu peux démarrer quand même, le suivi s'accrochera en route.",
+                )
+                arreterDetection()
+            }
+        }, 20_000L)
+    }
+
+    private fun arreterDetection() {
+        try {
+            gestionnaire.removeUpdates(ecouteurDetection)
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun appliquerDetection(lat: Double, lon: Double) {
+        arreterDetection()
+        val trouve = Aeroports.plusProche(aeroports, lat, lon, RAYON_DETECTION_KM)
+        if (trouve != null && !departManuel) {
+            departActuel = trouve.first
+            origineActuelle = OrigineVol.DEVINEE
+        }
+        _detection.value = Detection(
+            enCours = false,
+            aeroport = departActuel,
+            distanceKm = trouve?.second,
+            latitude = lat,
+            longitude = lon,
+        )
+        if (trouve != null) JournalPlantage.etape("départ détecté (${trouve.first.code}, %.0f km)".format(trouve.second))
+        publier()
+    }
+
+    private val ecouteurDetection = object : LocationListener {
+        override fun onLocationChanged(location: Location) {
+            appliquerDetection(location.latitude, location.longitude)
+        }
+    }
+
     private var departActuel: Aeroport? = null
     private var arriveeActuelle: Aeroport? = null
     // Vrai dès que l'utilisateur choisit (ou corrige) l'arrivée à la main :
@@ -85,6 +187,11 @@ class VolViewModel(application: Application) : AndroidViewModel(application) {
     private val pointsJournal = mutableListOf<PointVol>()
     private var messageActuel: String? = null
     private var origineActuelle: OrigineVol = OrigineVol.MANUELLE
+
+    private val principal = android.os.Handler(android.os.Looper.getMainLooper())
+    // Détection d'atterrissage : on ne conclut qu'après avoir réellement volé.
+    private var aVole = false
+    private var arretDepuisMs: Long = 0L
 
     /** Recherche d'aéroports pour l'écran de préparation (code, nom ou ville). */
     fun rechercher(texte: String): List<Aeroport> = Aeroports.rechercher(aeroports, texte)
@@ -236,6 +343,21 @@ class VolViewModel(application: Application) : AndroidViewModel(application) {
             arriveeActuelle = etat.arrivee
             origineActuelle = OrigineVol.DEVINEE
         }
+
+        // --- Atterrissage automatique ---
+        // Une fois qu'on a vraiment volé, un arrêt prolongé au sol ferme le vol :
+        // l'utilisateur n'a pas à appuyer sur « Arrêter » en sortant de l'avion.
+        if (point.vitesseSolKmh >= VITESSE_VOL_KMH) aVole = true
+        if (aVole && point.vitesseSolKmh < VITESSE_SOL_IMMOBILE_KMH) {
+            if (arretDepuisMs == 0L) arretDepuisMs = point.horodatageMs
+            if (point.horodatageMs - arretDepuisMs >= IMMOBILITE_MS) {
+                JournalPlantage.etape("atterrissage détecté, vol clôturé")
+                arreterSuivi()
+                return
+            }
+        } else if (point.vitesseSolKmh >= VITESSE_SOL_IMMOBILE_KMH) {
+            arretDepuisMs = 0L
+        }
         publier()
     }
 
@@ -293,5 +415,17 @@ class VolViewModel(application: Application) : AndroidViewModel(application) {
         const val SEUIL_CONFIANCE = 0.5
         /** Rayon de déduction du départ : un aéroport proche de la position. */
         const val RAYON_DEPART_KM = 40.0
+
+        /** Rayon retenu pour la détection automatique à l'ouverture. */
+        const val RAYON_DETECTION_KM = 40.0
+
+        /** Vitesse au-delà de laquelle on considère que l'appareil a volé. */
+        const val VITESSE_VOL_KMH = 120.0
+
+        /** En dessous, l'appareil est considéré à l'arrêt. */
+        const val VITESSE_SOL_IMMOBILE_KMH = 30.0
+
+        /** Durée d'immobilité qui vaut atterrissage. */
+        const val IMMOBILITE_MS = 3 * 60_000L
     }
 }

@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -92,90 +95,108 @@ private val COULEUR_TRACE = 0xFF1E88E5.toInt()
 @Composable
 fun EcranPreparation(
     ecran: EcranVol,
+    detection: Detection,
     permissionRefusee: Boolean,
     rechercher: (String) -> List<Aeroport>,
-    devinerDepart: () -> Unit,
     choisirDepart: (Aeroport) -> Unit,
     choisirArrivee: (Aeroport) -> Unit,
-    corrigerArrivee: (Aeroport) -> Unit,
     demarrerSuivi: () -> Unit,
-    effacerChoix: () -> Unit,
+    relancerDetection: () -> Unit,
 ) {
     val contexte = LocalContext.current
-    var dialogueCorrection by remember { mutableStateOf(false) }
+    var dialogueAeroports by remember { mutableStateOf(false) }
     var etatTuiles by remember { mutableStateOf<EtatTuiles>(EtatTuiles.Repos) }
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Préparer le vol", style = MaterialTheme.typography.headlineMedium)
+        Text("Prêt à décoller", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            "Tout est détecté automatiquement. Un seul bouton à presser.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline,
+        )
 
         if (permissionRefusee) {
             BandeauAlerte(
-                "Localisation refusée : le suivi GPS reste inactif. Active l'accès à la " +
-                    "position dans les réglages de l'appareil pour suivre le vol."
+                "Localisation refusée : la détection automatique et le suivi GPS restent " +
+                    "inactifs. Autorise l'accès à la position dans les réglages."
             )
         }
         ecran.message?.let { BandeauAlerte(it) }
+        detection.erreur?.let { if (!permissionRefusee) BandeauAlerte(it) }
 
-        ChampRechercheAeroport(
-            label = "Aéroport de départ",
-            selection = ecran.depart,
-            rechercher = rechercher,
-            onChoisir = choisirDepart,
-        )
-        // Départ déduit du GPS : pratique quand on est déjà à l'aéroport.
-        TextButton(onClick = devinerDepart, modifier = Modifier.fillMaxWidth()) {
-            Text("📍 Déduire le départ de ma position GPS")
+        // --- Départ ---
+        val departTexte = when {
+            ecran.depart != null -> libelleAeroport(ecran.depart)
+            detection.enCours -> "Recherche de ta position…"
+            else -> "Aucun aéroport à moins de 40 km"
         }
-        ChampRechercheAeroport(
-            label = "Aéroport d'arrivée",
-            selection = ecran.arrivee,
-            rechercher = rechercher,
-            onChoisir = choisirArrivee,
+        val departDetail = when {
+            detection.distanceKm != null -> "à %.0f km de ta position".format(detection.distanceKm)
+            ecran.depart != null -> "choisi à la main"
+            else -> null
+        }
+        CarteDetection(
+            titre = "AÉROPORT DE DÉPART",
+            valeur = departTexte,
+            detail = departDetail,
+            pastilleVerte = ecran.depart != null,
         )
 
-        // Destination devinée par le GPS (visible si on revient en préparation
-        // après un vol, ou si une devinette a déjà été posée).
-        if (ecran.origine == OrigineVol.DEVINEE && ecran.arrivee != null) {
-            Surface(
-                color = MaterialTheme.colorScheme.tertiaryContainer,
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "Destination devinée : ${ecran.arrivee.nom} " +
-                            "(${(confiance(ecran) * 100).roundToInt()} %)",
-                        Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    TextButton(onClick = { dialogueCorrection = true }) { Text("Corriger") }
-                }
-            }
+        // --- Destination (seulement si la devinette a déjà parlé) ---
+        ecran.arrivee?.let { arrivee ->
+            CarteDetection(
+                titre = "DESTINATION PROBABLE",
+                valeur = libelleAeroport(arrivee),
+                detail = "%.0f %% de confiance".format(confiance(ecran) * 100),
+                pastilleVerte = false,
+            )
         }
 
-        // Journal de plantage : visible seulement si l'application s'est déjà
-        // fermée toute seule. Aucun envoi automatique, l'utilisateur décide.
-        BlocJournalPlantage(contexte)
+        // --- Position ---
+        if (detection.latitude != null && detection.longitude != null) {
+            CarteDetection(
+                titre = "POSITION GPS",
+                valeur = "%.4f N · %.4f %s".format(
+                    detection.latitude,
+                    kotlin.math.abs(detection.longitude),
+                    if (detection.longitude < 0) "O" else "E",
+                ),
+                detail = ecran.dernier?.let { "cap %03d°".format(it.capDeg.roundToInt()) },
+                pastilleVerte = true,
+            )
+        }
 
-        // Préparation de la carte hors ligne : télécharge les tuiles (zooms 5-9)
-        // autour du trajet via osmdroid CacheManager, avec progression visible.
+        Button(
+            onClick = demarrerSuivi,
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+        ) {
+            Text("DÉMARRER LE SUIVI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+        TextButton(onClick = { dialogueAeroports = true }, modifier = Modifier.fillMaxWidth()) {
+            Text("Corriger les aéroports")
+        }
+
+        // --- Option : carte hors ligne, jamais un préalable ---
+        Text("Carte hors ligne (option)", style = MaterialTheme.typography.titleSmall)
         Button(
             onClick = {
                 val d = ecran.depart
                 val a = ecran.arrivee
                 if (d != null && a != null) {
                     etatTuiles = EtatTuiles.EnCours(0, 0, ZOOM_MIN)
-                    JournalPlantage.etape("préparation de la carte demandée")
                     lancerTelechargementTuiles(contexte, d, a) { etatTuiles = it }
                 }
             },
             enabled = ecran.depart != null && ecran.arrivee != null && etatTuiles !is EtatTuiles.EnCours,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Préparer la carte")
+            Text(
+                if (ecran.depart == null || ecran.arrivee == null) "Préparer la carte (aéroports requis)"
+                else "Préparer la carte"
+            )
         }
         when (val etat = etatTuiles) {
             is EtatTuiles.EnCours -> {
@@ -185,8 +206,7 @@ fun EcranPreparation(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Text(
-                        "Téléchargement des tuiles… ${etat.progression}/${etat.total} " +
-                            "(zoom ${etat.zoomActuel})",
+                        "Téléchargement des tuiles… ${etat.progression}/${etat.total} (zoom ${etat.zoomActuel})",
                         style = MaterialTheme.typography.bodySmall,
                     )
                 } else {
@@ -199,36 +219,103 @@ fun EcranPreparation(
                 style = MaterialTheme.typography.bodySmall,
             )
             is EtatTuiles.Echec -> Text(
-                "Échec du téléchargement (réseau indisponible ?). Tu peux démarrer le " +
-                    "suivi sans carte hors ligne.",
+                "Échec du téléchargement (réseau indisponible ?). Le suivi fonctionne quand même.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )
             is EtatTuiles.Refuse -> Text(
-                "Trajet trop long pour la carte hors ligne (${etat.tuiles} tuiles, " +
-                    "plafond ${SourceTuiles.TUILLES_MAX}). Le suivi GPS fonctionne " +
-                    "quand même.",
+                "Trajet trop long pour la carte hors ligne (${etat.tuiles} tuiles, plafond ${SourceTuiles.TUILLES_MAX}).",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )
             EtatTuiles.Repos -> {}
         }
 
-        Button(onClick = demarrerSuivi, modifier = Modifier.fillMaxWidth()) {
-            Text("Démarrer le suivi")
+        TextButton(onClick = relancerDetection, modifier = Modifier.fillMaxWidth()) {
+            Text("Relancer la détection GPS")
         }
-        TextButton(onClick = effacerChoix, modifier = Modifier.fillMaxWidth()) {
-            Text("Effacer le choix")
-        }
+
+        BlocJournalPlantage(contexte)
     }
 
-    if (dialogueCorrection) {
-        DialogueCorrectionArrivee(
+    if (dialogueAeroports) {
+        DialogueAeroports(
+            ecran = ecran,
             rechercher = rechercher,
-            corrigerArrivee = corrigerArrivee,
-            onFermer = { dialogueCorrection = false },
+            choisirDepart = choisirDepart,
+            choisirArrivee = choisirArrivee,
+            onFermer = { dialogueAeroports = false },
         )
     }
+}
+
+/** Carte de synthèse de l'écran d'accueil : libellé, valeur, détail, pastille. */
+@Composable
+private fun CarteDetection(
+    titre: String,
+    valeur: String,
+    detail: String?,
+    pastilleVerte: Boolean,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .width(10.dp)
+                    .height(10.dp)
+                    .background(
+                        if (pastilleVerte) Color(0xFF2E7D32) else Color(0xFFE08A00),
+                        shape = CircleShape,
+                    )
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(titre, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                Text(valeur, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                detail?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            }
+        }
+    }
+}
+
+/**
+ * Correction manuelle des deux aéroports, ouverte à la demande : ce n'est plus
+ * une étape obligatoire de la préparation.
+ */
+@Composable
+private fun DialogueAeroports(
+    ecran: EcranVol,
+    rechercher: (String) -> List<Aeroport>,
+    choisirDepart: (Aeroport) -> Unit,
+    choisirArrivee: (Aeroport) -> Unit,
+    onFermer: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onFermer,
+        title = { Text("Corriger les aéroports") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                ChampRechercheAeroport(
+                    label = "Aéroport de départ",
+                    selection = ecran.depart,
+                    rechercher = rechercher,
+                    onChoisir = choisirDepart,
+                )
+                Spacer(Modifier.height(10.dp))
+                ChampRechercheAeroport(
+                    label = "Aéroport d'arrivée",
+                    selection = ecran.arrivee,
+                    rechercher = rechercher,
+                    onChoisir = choisirArrivee,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onFermer) { Text("Terminé") } },
+    )
 }
 
 /**
@@ -244,9 +331,6 @@ fun EcranSuiviVol(
     arreterSuivi: () -> Unit,
 ) {
     var dialogueCorrection by remember { mutableStateOf(false) }
-    // La carte reste la vue par défaut ; les cadrans sont à un geste et le choix
-    // est mémorisé pendant toute la session de vol.
-    var vueCadrans by rememberSaveable { mutableStateOf(false) }
 
     // Écran maintenu allumé : on ne veut pas que la luminosité baisse en vol.
     val vue = LocalView.current
@@ -256,33 +340,19 @@ fun EcranSuiviVol(
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            FilterChip(
-                selected = vueCadrans,
-                onClick = { vueCadrans = true },
-                label = { Text("Cadrans") },
-                modifier = Modifier.weight(1f),
-            )
-            FilterChip(
-                selected = !vueCadrans,
-                onClick = { vueCadrans = false },
-                label = { Text("Carte") },
-                modifier = Modifier.weight(1f),
-            )
-        }
-        if (vueCadrans) {
-            TableauDeBord(dernier = ecran.dernier, modifier = Modifier.weight(1f))
-        } else {
+        // La carte occupe le fond, les cadrans se posent dessus : on garde le
+        // repère géographique sans quitter les instruments.
+        Box(Modifier.weight(1f)) {
             CarteVol(
                 depart = ecran.depart,
                 arrivee = ecran.arrivee,
                 dernier = ecran.dernier,
                 points = ecran.points,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxSize(),
             )
+            // Voile léger : les tuiles restent lisibles, les cadrans se détachent.
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.22f)))
+            TableauDeBord(dernier = ecran.dernier, modifier = Modifier.fillMaxSize())
         }
         BandeauVol(ecran = ecran, onCorriger = { dialogueCorrection = true })
         Button(onClick = arreterSuivi, modifier = Modifier.fillMaxWidth().padding(12.dp)) {
