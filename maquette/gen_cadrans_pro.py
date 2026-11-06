@@ -153,7 +153,7 @@ def cadran_cap(cap_txt, cap, cardinal, uid="c"):
             s.append(texte(tx, ty + R * 0.065, cardinal_l, R * 0.19, AIGUILLE if cardinal_l == "N" else TEXTE))
         else:
             tx, ty = pt(cx, cy, R * 0.62, deg)
-            s.append(texte(tx, ty + R * 0.045, f"{deg//10:02d}", R * 0.13, DISCRET, False))
+            s.append(texte(tx, ty + R * 0.045, f"{deg//10:02d}", R * 0.135, "#B4C2D8", False))
     s.append('</g>')
     # index fixe en haut
     px_, py_ = pt(cx, cy, R * 0.90, 0)
@@ -190,7 +190,7 @@ HTML = f'''<!DOCTYPE html>
   <div class="grille">
     {cadran_cap("225°", 225, "SO", "a")}
     {cadran_arc("VARIOMÈTRE", "m/s", "+3 m/s", 3, -10, 10, 2, 2,
-                [(-10, -2, VERT), (2, 10, VERT)], -120, 120, zero=True, uid="b")}
+                [(-10, -2, VERT), (2, 10, VERT)], -120, 120, zero=False, uid="b")}
     {cadran_arc("VITESSE SOL", "km/h", "842 km/h", 842, 0, 1000, 50, 200,
                 [(0, 1000, BLANC), (700, 950, VERT)], uid="d")}
     {cadran_arc("ALTITUDE", "m", "10 700 m", 10700, 0, 12000, 500, 3000,

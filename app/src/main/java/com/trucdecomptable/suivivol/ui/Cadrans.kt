@@ -234,8 +234,10 @@ private fun CadranCap(cap: Double?, modifier: Modifier = Modifier) {
                         texteCadran(
                             "%02d".format(degre / 10),
                             pointSurCercle(centre, rayon * 0.62f, degre.toDouble()),
-                            taille = rayon * 0.13f,
-                            couleur = TEXTE_DISCRET,
+                            taille = rayon * 0.135f,
+                            // Ces chiffres tournent avec la carte : il leur faut
+                            // plus de contraste que les libellés fixes.
+                            couleur = Color(0xFFB4C2D8),
                             decalageY = rayon * 0.045f,
                         )
                     }
