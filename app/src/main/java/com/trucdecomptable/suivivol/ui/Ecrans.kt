@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import com.trucdecomptable.suivivol.data.Aeroport
+import com.trucdecomptable.suivivol.data.SourceTuiles
 import com.trucdecomptable.suivivol.data.Geo
 import com.trucdecomptable.suivivol.util.JournalPlantage
 import com.trucdecomptable.suivivol.vol.JournalGpx
@@ -155,6 +156,7 @@ fun EcranPreparation(
                 val a = ecran.arrivee
                 if (d != null && a != null) {
                     etatTuiles = EtatTuiles.EnCours(0, 0, ZOOM_MIN)
+                    JournalPlantage.etape("préparation de la carte demandée")
                     lancerTelechargementTuiles(contexte, d, a) { etatTuiles = it }
                 }
             },
@@ -187,6 +189,13 @@ fun EcranPreparation(
             is EtatTuiles.Echec -> Text(
                 "Échec du téléchargement (réseau indisponible ?). Tu peux démarrer le " +
                     "suivi sans carte hors ligne.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+            is EtatTuiles.Refuse -> Text(
+                "Trajet trop long pour la carte hors ligne (${etat.tuiles} tuiles, " +
+                    "plafond ${SourceTuiles.TUILLES_MAX}). Le suivi GPS fonctionne " +
+                    "quand même.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )
@@ -465,7 +474,7 @@ private fun CarteVol(
     AndroidView(
         factory = { contexte ->
             MapView(contexte).apply {
-                setTileSource(TileSourceFactory.MAPNIK)
+                setTileSource(SourceTuiles.OSM)
                 setMultiTouchControls(true)
                 carte.value = this
             }
@@ -641,6 +650,9 @@ private sealed interface EtatTuiles {
     data class EnCours(val progression: Int, val total: Int, val zoomActuel: Int) : EtatTuiles
     object Reussi : EtatTuiles
     data class Echec(val erreurs: Int) : EtatTuiles
+
+    /** Trajet trop long : on refuse plutôt que de moissonner le serveur. */
+    data class Refuse(val tuiles: Int) : EtatTuiles
 }
 
 /**
@@ -663,13 +675,26 @@ private fun lancerTelechargementTuiles(
         // Carte jetable : sert uniquement à obtenir le fournisseur de tuiles et
         // le cache que CacheManager va remplir.
         val carte = MapView(contexte)
-        carte.setTileSource(TileSourceFactory.MAPNIK)
+        carte.setTileSource(SourceTuiles.OSM)
         val gestionnaire = CacheManager(carte)
 
         // Boîte englobante départ + arrivée, élargie pour couvrir le trajet.
         val boite = BoundingBox.fromGeoPoints(
             listOf(GeoPoint(depart.lat, depart.lon), GeoPoint(arrivee.lat, arrivee.lon))
         ).increaseByScale(1.5f)
+
+        // Pré-vérification : inutile de lancer une AsyncTask qui lèverait une
+        // exception non interceptable ou moissonnerait le serveur.
+        val tuilesPrevues = gestionnaire.possibleTilesInArea(boite, ZOOM_MIN, ZOOM_MAX)
+        if (tuilesPrevues <= 0) {
+            publier(EtatTuiles.Echec(0))
+            return
+        }
+        if (tuilesPrevues > SourceTuiles.TUILLES_MAX) {
+            JournalPlantage.etape("téléchargement de tuiles refusé ($tuilesPrevues tuiles)")
+            publier(EtatTuiles.Refuse(tuilesPrevues))
+            return
+        }
 
         var total = 0
         gestionnaire.downloadAreaAsync(
