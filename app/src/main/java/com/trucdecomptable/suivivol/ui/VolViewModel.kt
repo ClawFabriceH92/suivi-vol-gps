@@ -76,6 +76,9 @@ class VolViewModel(application: Application) : AndroidViewModel(application) {
     // Vrai dès que l'utilisateur choisit (ou corrige) l'arrivée à la main :
     // la devinette ne doit plus écraser son choix.
     private var arriveeManuelle = false
+    // Vrai dès que l'utilisateur choisit un départ à la main : la déduction
+    // depuis le GPS ne doit plus l'écraser.
+    private var departManuel = false
     private var enVolActuel = false
     private var etatActuel: EtatVol? = null
     private var dernierPoint: PointVol? = null
@@ -89,8 +92,70 @@ class VolViewModel(application: Application) : AndroidViewModel(application) {
     /** Choix manuel du départ : toujours possible, repasse l'origine en MANUELLE. */
     fun choisirDepart(aeroport: Aeroport) {
         departActuel = aeroport
+        departManuel = true
         origineActuelle = OrigineVol.MANUELLE
         publier()
+    }
+
+    /**
+     * Déduit l'aéroport de départ de la position GPS actuelle : on est souvent
+     * déjà à l'aéroport quand on prépare le vol. Un aéroport à service régulier
+     * est privilégié ([Aeroports.plusProche]). Aucun écrasement d'un choix
+     * manuel, et message clair si rien n'est trouvé.
+     */
+    @SuppressLint("MissingPermission")
+    fun devinerDepart() {
+        if (ContextCompat.checkSelfPermission(app, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            messageActuel = "Localisation refusée : impossible de déduire le départ."
+            publier()
+            return
+        }
+        val position = positionConnue()
+        if (position == null) {
+            messageActuel = "Position inconnue pour l'instant : choisis le départ à la main " +
+                "ou réessaie dans quelques secondes."
+            publier()
+            return
+        }
+        appliquerDepartDepuis(position.latitude, position.longitude, bavard = true)
+    }
+
+    /** Déduction silencieuse pendant le suivi : uniquement si rien n'est choisi. */
+    private fun deduireDepartSiBesoin(lat: Double, lon: Double) {
+        if (departManuel || departActuel != null) return
+        appliquerDepartDepuis(lat, lon, bavard = false)
+    }
+
+    private fun appliquerDepartDepuis(lat: Double, lon: Double, bavard: Boolean) {
+        val trouve = Aeroports.plusProche(aeroports, lat, lon, RAYON_DEPART_KM)
+        if (trouve == null) {
+            if (bavard) {
+                messageActuel = "Aucun aéroport à moins de ${RAYON_DEPART_KM.toInt()} km : " +
+                    "choisis le départ à la main."
+                publier()
+            }
+            return
+        }
+        departActuel = trouve.first
+        origineActuelle = OrigineVol.DEVINEE
+        if (bavard) {
+            messageActuel = "Départ déduit de ta position : %s (%.0f km)".format(trouve.first.nom, trouve.second)
+        }
+        JournalPlantage.etape("départ déduit par GPS (${trouve.first.code})")
+        publier()
+    }
+
+    /** Dernière position connue, sans attendre un nouveau relevé. */
+    @SuppressLint("MissingPermission")
+    private fun positionConnue(): Location? = try {
+        gestionnaire.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            ?: gestionnaire.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+    } catch (e: SecurityException) {
+        null
+    } catch (e: IllegalArgumentException) {
+        null
     }
 
     /** Choix manuel de l'arrivée : verrouille la devinette et repasse en MANUELLE. */
@@ -159,6 +224,9 @@ class VolViewModel(application: Application) : AndroidViewModel(application) {
         dernierPoint = point
         pointsJournal.add(point)
 
+        // Départ : déduit de la position tant que l'utilisateur n'a rien choisi.
+        deduireDepartSiBesoin(point.lat, point.lon)
+
         val etat = devinette.ajouter(point)
         etatActuel = etat
 
@@ -223,5 +291,7 @@ class VolViewModel(application: Application) : AndroidViewModel(application) {
         const val MIN_TEMPS_MS = 2000L
         const val MIN_DISTANCE_M = 10f
         const val SEUIL_CONFIANCE = 0.5
+        /** Rayon de déduction du départ : un aéroport proche de la position. */
+        const val RAYON_DEPART_KM = 40.0
     }
 }

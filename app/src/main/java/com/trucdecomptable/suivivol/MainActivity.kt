@@ -120,6 +120,7 @@ private fun Racine() {
             ecran = ecran,
             permissionRefusee = permissionRefusee,
             rechercher = vueModele::rechercher,
+            devinerDepart = vueModele::devinerDepart,
             choisirDepart = vueModele::choisirDepart,
             choisirArrivee = vueModele::choisirArrivee,
             corrigerArrivee = vueModele::corrigerArrivee,

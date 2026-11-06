@@ -38,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +70,9 @@ import org.osmdroid.views.overlay.Polyline
 import java.io.File
 import java.time.LocalDate
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /** Niveaux de zoom téléchargés pour la carte hors ligne (trajet départ/arrivée). */
 private const val ZOOM_MIN = 5
@@ -87,6 +91,7 @@ fun EcranPreparation(
     ecran: EcranVol,
     permissionRefusee: Boolean,
     rechercher: (String) -> List<Aeroport>,
+    devinerDepart: () -> Unit,
     choisirDepart: (Aeroport) -> Unit,
     choisirArrivee: (Aeroport) -> Unit,
     corrigerArrivee: (Aeroport) -> Unit,
@@ -117,6 +122,10 @@ fun EcranPreparation(
             rechercher = rechercher,
             onChoisir = choisirDepart,
         )
+        // Départ déduit du GPS : pratique quand on est déjà à l'aéroport.
+        TextButton(onClick = devinerDepart, modifier = Modifier.fillMaxWidth()) {
+            Text("📍 Déduire le départ de ma position GPS")
+        }
         ChampRechercheAeroport(
             label = "Aéroport d'arrivée",
             selection = ecran.arrivee,
@@ -347,8 +356,18 @@ private fun ChampRechercheAeroport(
     onChoisir: (Aeroport) -> Unit,
 ) {
     var texte by remember { mutableStateOf("") }
-    // Suggestions dès deux caractères, pour ne pas balayer toute la base.
-    val suggestions = if (texte.trim().length >= 2) rechercher(texte) else emptyList()
+    var suggestions by remember { mutableStateOf<List<Aeroport>>(emptyList()) }
+    // Recherche débouncée : la frappe déclenchait auparavant un balayage complet
+    // de la base sur le thread principal à chaque caractère, d'où la lenteur.
+    LaunchedEffect(texte) {
+        val requete = texte.trim()
+        if (requete.length < 2) {
+            suggestions = emptyList()
+        } else {
+            delay(180) // laisse le temps de finir de taper
+            suggestions = withContext(Dispatchers.Default) { rechercher(requete) }
+        }
+    }
 
     Column(Modifier.fillMaxWidth()) {
         OutlinedTextField(

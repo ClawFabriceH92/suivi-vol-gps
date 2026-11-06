@@ -33,6 +33,41 @@ object Aeroports {
     @Volatile
     private var cache: List<Aeroport>? = null
 
+    /** Regex précompilée : `\p{Mn}` retire les diacritiques après décomposition NFD. */
+    private val DIACRITIQUES = Regex("\\p{Mn}+")
+
+    /** Pénalité (km) appliquée aux terrains sans service régulier. */
+    private const val PENALITE_NON_REGULIER_KM = 25.0
+
+    /** Champs déjà normalisés, pour ne pas les recalculer à chaque recherche. */
+    private class Entree(
+        val aeroport: Aeroport,
+        val code: String,
+        val iata: String,
+        val icao: String,
+        val ville: String,
+        val nom: String,
+    )
+
+    @Volatile
+    private var indexSource: List<Aeroport>? = null
+
+    @Volatile
+    private var indexEntrees: List<Entree> = emptyList()
+
+    private fun indexe(tous: List<Aeroport>): List<Entree> {
+        if (indexSource === tous) return indexEntrees
+        synchronized(this) {
+            if (indexSource === tous) return indexEntrees
+            val entrees = tous.map { a ->
+                Entree(a, normaliser(a.code), normaliser(a.iata), normaliser(a.icao), normaliser(a.ville), normaliser(a.nom))
+            }
+            indexEntrees = entrees
+            indexSource = tous
+            return entrees
+        }
+    }
+
     /**
      * Parse les lignes du CSV `airports.csv` (séparateur `;`,
      * en-tête `code;iata;icao;nom;lat;lon;pays;ville;type;regulier`).
@@ -95,32 +130,55 @@ object Aeroports {
         val q = normaliser(texte)
         if (q.isEmpty()) return emptyList()
 
-        // On attribue un rang de pertinence (0 = meilleur) à chaque aéroport,
-        // puis on trie par rang puis par nom pour un ordre stable.
-        data class Resultat(val aeroport: Aeroport, val rang: Int)
+        // L'index normalisé est calculé une seule fois : auparavant, chaque
+        // frappe normalisait 5 champs pour 8 925 aéroports, soit ~44 000
+        // normalisations et autant de compilations de regex sur le thread
+        // principal. C'est ce qui rendait la sélection d'aéroport poussive.
+        data class Resultat(val aeroport: Aeroport, val rang: Int, val nom: String)
 
         val resultats = ArrayList<Resultat>()
-        for (a in tous) {
-            val code = normaliser(a.code)
-            val iata = normaliser(a.iata)
-            val icao = normaliser(a.icao)
-            val ville = normaliser(a.ville)
-            val nom = normaliser(a.nom)
+        for (e in indexe(tous)) {
             val rang = when {
-                code == q || iata == q || icao == q -> 0
-                code.startsWith(q) || iata.startsWith(q) || icao.startsWith(q) -> 1
-                code.contains(q) || iata.contains(q) || icao.contains(q) -> 2
-                ville.contains(q) -> 3
-                nom.contains(q) -> 4
+                e.code == q || e.iata == q || e.icao == q -> 0
+                e.code.startsWith(q) || e.iata.startsWith(q) || e.icao.startsWith(q) -> 1
+                e.code.contains(q) || e.iata.contains(q) || e.icao.contains(q) -> 2
+                e.ville.contains(q) -> 3
+                e.nom.contains(q) -> 4
                 else -> continue
             }
-            resultats.add(Resultat(a, rang))
+            resultats.add(Resultat(e.aeroport, rang, e.nom))
         }
 
         return resultats
-            .sortedWith(compareBy({ it.rang }, { normaliser(it.aeroport.nom) }))
+            .sortedWith(compareBy({ it.rang }, { it.nom }))
             .take(max)
             .map { it.aeroport }
+    }
+
+    /**
+     * Aéroport le plus proche d'une position, en privilégiant ceux desservis par
+     * un service régulier (utile pour déduire le départ depuis le GPS).
+     */
+    fun plusProche(
+        tous: List<Aeroport>,
+        lat: Double,
+        lon: Double,
+        rayonKm: Double,
+    ): Pair<Aeroport, Double>? {
+        var meilleur: Pair<Aeroport, Double>? = null
+        var meilleurScore = Double.MAX_VALUE
+        for (a in tous) {
+            val d = Geo.distanceKm(lat, lon, a.lat, a.lon)
+            if (d > rayonKm) continue
+            // Un aéroport à service régulier passe devant un terrain privé,
+            // même un peu plus éloigné.
+            val score = if (a.regulier) d else d + PENALITE_NON_REGULIER_KM
+            if (score < meilleurScore) {
+                meilleurScore = score
+                meilleur = a to d
+            }
+        }
+        return meilleur
     }
 
     /**
@@ -157,7 +215,7 @@ object Aeroports {
     private fun normaliser(texte: String): String {
         val minuscules = texte.lowercase(Locale.ROOT)
         val sansAccents = Normalizer.normalize(minuscules, Normalizer.Form.NFD)
-            .replace(Regex("\\p{Mn}+"), "")
+            .replace(DIACRITIQUES, "")
         return sansAccents
     }
 }

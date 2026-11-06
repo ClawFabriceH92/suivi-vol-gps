@@ -96,4 +96,31 @@ class AeroportsTest {
         assertEquals("JFK", Aeroports.parCode(aeroports, "jfk")?.code)
         assertNull(Aeroports.parCode(aeroports, "ZZZ"))
     }
+
+    @Test
+    fun `plusProche prefere un aeroport a service regulier`() {
+        // Position au Bourget (LBG, sans service régulier), CDG à ~8 km.
+        val trouve = Aeroports.plusProche(aeroports, 48.9694, 2.4414, 40.0)
+        assertTrue("un aéroport doit être trouvé", trouve != null)
+        assertEquals("CDG", trouve!!.first.code)
+        assertTrue("la distance doit être plausible", trouve.second > 0.0)
+    }
+
+    @Test
+    fun `plusProche respecte le rayon`() {
+        // Au large de Nice, à plus de 40 km de tout : rien.
+        assertNull(Aeroports.plusProche(aeroports, 42.5, 7.2159, 40.0))
+        // À 200 km de rayon, Nice ressort.
+        assertEquals("NCE", Aeroports.plusProche(aeroports, 42.5, 7.2159, 200.0)?.first?.code)
+    }
+
+    @Test
+    fun `recherche repetee donne le meme resultat avec l index en cache`() {
+        // L'index normalisé est calculé une fois puis réutilisé : les résultats
+        // doivent rester identiques d'un appel à l'autre (non-régression perf).
+        val premier = Aeroports.rechercher(aeroports, "paris")
+        val second = Aeroports.rechercher(aeroports, "paris")
+        assertEquals(premier.map { it.code }, second.map { it.code })
+        assertEquals("CDG", premier.first().code)
+    }
 }
