@@ -17,6 +17,7 @@ import com.trucdecomptable.suivivol.vol.EtatVol
 import com.trucdecomptable.suivivol.vol.JournalGpx
 import com.trucdecomptable.suivivol.vol.OrigineVol
 import com.trucdecomptable.suivivol.vol.PointVol
+import com.trucdecomptable.suivivol.util.JournalPlantage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -49,7 +50,17 @@ class VolViewModel(application: Application) : AndroidViewModel(application) {
 
     // Base d'aéroports chargée une seule fois (cache mémoire de Aeroports) ;
     // le moteur de devinette et le gestionnaire de localisation en dépendent.
-    private val aeroports: List<Aeroport> by lazy { Aeroports.charger(app) }
+    // Une base d'aéroports illisible ne doit pas fermer l'application : on
+    // renvoie une liste vide et l'écran affichera un message explicite.
+    private val aeroports: List<Aeroport> by lazy {
+        try {
+            Aeroports.charger(app).also { JournalPlantage.etape("base aéroports chargée (${it.size})") }
+        } catch (t: Throwable) {
+            JournalPlantage.etape("échec base aéroports : ${t.javaClass.simpleName}")
+            messageActuel = "Base d'aéroports illisible : recherche indisponible, saisie manuelle possible."
+            emptyList()
+        }
+    }
     private val devinette: DevinetteVol by lazy { DevinetteVol(aeroports) }
     private val gestionnaire: LocationManager by lazy {
         app.getSystemService(Context.LOCATION_SERVICE) as LocationManager

@@ -53,6 +53,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import com.trucdecomptable.suivivol.data.Aeroport
 import com.trucdecomptable.suivivol.data.Geo
+import com.trucdecomptable.suivivol.util.JournalPlantage
 import com.trucdecomptable.suivivol.vol.JournalGpx
 import com.trucdecomptable.suivivol.vol.OrigineVol
 import com.trucdecomptable.suivivol.vol.PointVol
@@ -141,6 +142,10 @@ fun EcranPreparation(
                 }
             }
         }
+
+        // Journal de plantage : visible seulement si l'application s'est déjà
+        // fermée toute seule. Aucun envoi automatique, l'utilisateur décide.
+        BlocJournalPlantage(contexte)
 
         // Préparation de la carte hors ligne : télécharge les tuiles (zooms 5-9)
         // autour du trajet via osmdroid CacheManager, avec progression visible.
@@ -720,5 +725,31 @@ private fun partagerGpx(contexte: Context, points: List<PointVol>): String? {
         null
     } catch (e: Exception) {
         "Partage impossible : ${e.message ?: "aucun récepteur disponible."}"
+    }
+}
+
+/**
+ * Bloc discret du journal de plantage : n'apparaît que si un plantage a été
+ * enregistré, avec un partage manuel et un effacement.
+ */
+@Composable
+private fun BlocJournalPlantage(contexte: android.content.Context) {
+    var plantage by remember { mutableStateOf(JournalPlantage.dernierPlantage(contexte)) }
+    val contenu = plantage ?: return
+    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+    Text("Dernier plantage", style = MaterialTheme.typography.titleSmall)
+    Text(
+        contenu.lineSequence().take(6).joinToString("\n"),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+    )
+    Row {
+        TextButton(onClick = { contexte.startActivity(JournalPlantage.intentionPartage(contexte)) }) {
+            Text("Envoyer le journal")
+        }
+        TextButton(onClick = {
+            JournalPlantage.effacer(contexte)
+            plantage = null
+        }) { Text("Effacer") }
     }
 }
